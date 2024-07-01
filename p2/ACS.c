@@ -257,245 +257,210 @@ while(total_num_customers>0){
 
 
 
-int main(int argc, char * argv[])
-{
+int main(int argc, char* argv[]) {
+    // Input validation
+    if (argc < 2) {
+        printf("No file was inserted!\n");
+        return 1;
+    } else if (strcmp(argv[1], "") == 0) {
+        printf("Please try again!\n");
+        return 1;
+    } else if (argc > 2) {
+        printf("Please ensure that you know how to use the program\n");
+        return 1;
+    }
 
-	//input validation
-	if(argc<2){
-		printf("No file was inserted!\n");
-		return 1;
-	}
-	else if(strcmp(argv[1],"")==0){
-		printf("Please try again!\n");
-		return 1;
-	}
-	else if(argc>2){
-		printf("Please ensure that you know how to use the program\n");
-		return 1;
-	}
-	
-	
+    // Variable declaration
+    FILE* CustomerFile;
+    char line[100];
+    char* token;
+    const char delimiters[5] = " \n:,";
+    int total_customers;
 
-	//variable declaration
-	FILE *CustomerFile;
-	char line[100];
-	char *token;
-	const char delimiters[5]=" \n:,";
-	int total_customers;
-	
+    // File validation handling
+    CustomerFile = fopen(argv[1], "r");
+    if (CustomerFile == NULL) {
+        printf("Failed to open file: %s\n", strerror(errno));
+        return 1;
+    }
 
-	//file validation handling
-	CustomerFile=fopen(argv[1],"r");
-	if(CustomerFile==NULL){
-		printf("Failed to open file: %s\n",strerror(errno));
-		return 1;
-	}
+    // Reads the total number of customers from the file
+    if (fgets(line, sizeof(line), CustomerFile) != NULL) {
+        token = strtok(line, delimiters);
+        total_customers = atoi(token);
 
+        if (total_customers == 0) {
+            printf("There aren't any customers to serve today, bye bye!\n");
+            fclose(CustomerFile); // Close the file if no customers
+            return 0;
+        }
+    } else {
+        printf("Failed to read number of customers from file\n");
+        fclose(CustomerFile); // Close the file on failure
+        return 1;
+    }
 
-	if(fgets(line,sizeof(line),CustomerFile)!=NULL){
-		token=strtok(line,delimiters);
-		total_customers=atoi(token);
-	
-		if(total_customers==0){
-			printf("There aren't any customers to serve today, bye bye!\n");
-			return 0;
-		}
-	}
+    // Creates the array that would store the details of customers
+    customers customerarray[total_customers];
 
-	//creates the array that would store the details of customers
-	customers customerarray[total_customers];	
-		
-	
-	//reads through the text file
-	int i=0;
-	while(i<total_customers && fgets(line,sizeof(line),CustomerFile)!=NULL){
-
-			//text file validation, if the current line is not EOF continue reading from the next line
-			if(line[0]=='\n' || line[0]=='\0'){
-				
-				continue;
-			
-			}
-		
-			//tokenize the line
-			token=strtok(line,delimiters);
-		
-			//if the token results in these things but not EOF continue reading from the next line
-			if(strcmp(token,"")==0 || token==NULL){
-				
-				continue;
-			}	
-
-			//temporary variables
-			int customer_id,class_level, arrival_time, service_time;
-			int count=0;
-
-			//initialization procedures
-			while(token!=NULL){
-				if(count==0){
-					customer_id=atoi(token);
-					count++;
-					customerarray[i].customer_id=customer_id;
-				}
-				else if(count==1){
-					class_level=atoi(token);
-					count++;
-					customerarray[i].class_level=class_level;
-
-				}
-				else if(count==2){
-					arrival_time=atoi(token);
-
-					//if arrival_time is negative, then end the program with error message
-					if(arrival_time < 0){
-						printf("There exists a negative time entry for arrival_time. Ending the program.\n");
-						return 1;
-					}
-					count++;
-					customerarray[i].arrival_time=arrival_time;
-
-				}
-				else if(count==3){
-					service_time=atoi(token);
-					
-					//if service_time is negative, then end the program with error message
-					if(service_time <0){
-						printf("There exists a negative time entry for service_time. Ending the program.\n");
-						return 1;
-					}
-					count++;
-					customerarray[i].service_time=service_time;
-				}
-				token=strtok(NULL,delimiters);
-			}
-			i++;
-		
-
-		}
-
-	fclose(CustomerFile); //close the file
-
-	//initialization of global variable total_num_customers
-	total_num_customers=total_customers;
-
-	//thread variable declaration
-	pthread_t employees[5];
-	pthread_t customers[total_customers];
-
-
-
-	
-
-
-	//start the simulation
-	double cur_simulation_secs;	
-	gettimeofday(&start_time, NULL);
-
-	//Function for creation of mutex and condition variables
-	int return_val1= Mutex_Convar_Creator();
-
-	if(return_val1==1){
-		printf("There was an error with creating the mutexes and condition variables\n");
-		return 1;
-	}
-	
-			
-	//Clerk thread creation
-	for(int i=0; i<5;i++){
-		int *employee_id=(int *)malloc(sizeof(int));
-			if(employee_id==NULL){
-			printf("Failed to allocate memory\n");
-			return 1;
-			}	
-		
-		*employee_id=i;
-	
-		 int result = pthread_create(&employees[i],NULL,employee_thread,(void *)employee_id);
-		 if(result!=0){
-		 	printf("Error creating employees thread: %d\n",result);
-		 	return i;
-
-		 }
-		
-		 printf("Clerk %d started working!\n",i);
-
-
-	}
-
-
-	//Customer thread creation
-	   for(int i=0; i<total_customers;i++){
-
-                int result=pthread_create(&customers[i],NULL,customer_thread,(void *)&customerarray[i]);
-                if(result!=0){
-
-                        printf("Error creating customers thread: %d\n", result);
-                        return 1;
-
-                }
-
-
+    // Read customer details from the file into customerarray
+    int i = 0;
+    while (i < total_customers && fgets(line, sizeof(line), CustomerFile) != NULL) {
+        // Text file validation, if the current line is not EOF continue reading from the next line
+        if (line[0] == '\n' || line[0] == '\0') {
+            continue;
         }
 
+        // Tokenize the line
+        token = strtok(line, delimiters);
 
-	// Join customer threads
+        // If the token results in these things but not EOF continue reading from the next line
+        if (strcmp(token, "") == 0 || token == NULL) {
+            continue;
+        }
+
+        // Temporary variables
+        int customer_id, class_level, arrival_time, service_time;
+        int count = 0;
+
+        // Initialization procedures
+        while (token != NULL) {
+            if (count == 0) {
+                customer_id = atoi(token);
+                count++;
+                customerarray[i].customer_id = customer_id;
+            } else if (count == 1) {
+                class_level = atoi(token);
+                count++;
+                customerarray[i].class_level = class_level;
+                if (class_level == 1) {
+                    business_num++;
+                } else if (class_level == 2) {
+                    economy_num++;
+                }
+            } else if (count == 2) {
+                arrival_time = atoi(token);
+
+                // If arrival_time is negative, then end the program with an error message
+                if (arrival_time < 0) {
+                    printf("There exists a negative time entry for arrival_time. Ending the program.\n");
+                    return 1;
+                }
+                count++;
+                customerarray[i].arrival_time = arrival_time;
+
+            } else if (count == 3) {
+                service_time = atoi(token);
+
+                // If service_time is negative, then end the program with an error message
+                if (service_time < 0) {
+                    printf("There exists a negative time entry for service_time. Ending the program.\n");
+                    return 1;
+                }
+                count++;
+                customerarray[i].service_time = service_time;
+            }
+            token = strtok(NULL, delimiters);
+        }
+        i++;
+    }
+
+    fclose(CustomerFile); // Close the file after reading all customers
+
+    // Initialization of global variable total_num_customers
+    total_num_customers = total_customers;
+
+    // Thread variable declaration
+    pthread_t employees[5];
+    pthread_t customers[total_customers];
+
+    // Start the simulation
+    double cur_simulation_secs;
+    gettimeofday(&start_time, NULL);
+
+    // Function for creation of mutex and condition variables
+    int return_val1 = Mutex_Convar_Creator();
+
+    if (return_val1 == 1) {
+        printf("There was an error with creating the mutexes and condition variables\n");
+        return 1;
+    }
+
+    // Clerk thread creation
+    for (int i = 0; i < 5; i++) {
+        int* employee_id = (int*)malloc(sizeof(int));
+        if (employee_id == NULL) {
+            printf("Failed to allocate memory\n");
+            return 1;
+        }
+
+        *employee_id = i;
+
+        int result = pthread_create(&employees[i], NULL, employee_thread, (void*)employee_id);
+        if (result != 0) {
+            printf("Error creating employees thread: %d\n", result);
+            return i;
+        }
+
+        printf("Clerk %d started working!\n", i);
+    }
+
+    // Customer thread creation
+    for (int i = 0; i < total_customers; i++) {
+        int result = pthread_create(&customers[i], NULL, customer_thread, (void*)&customerarray[i]);
+        if (result != 0) {
+            printf("Error creating customers thread: %d\n", result);
+            return 1;
+        }
+    }
+
+    // Join customer threads
     for (int i = 0; i < total_customers; i++) {
         pthread_join(customers[i], NULL);
     }
 
-
     // Join employee threads
-    // Join clerk thread is not required according to Dennis
-  for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 5; i++) {
         pthread_join(employees[i], NULL);
-   }
+    }
 
+    // Cleans up and destroy Mutex and conditional variables
+    int return_val2 = Mutex_Convar_Destroyer();
 
-	//Cleans up and destroy Mutex and conditional variables
-	
-	  int return_val2=Mutex_Convar_Destroyer();
+    if (return_val2 == 1) {
+        printf("There was an error with destroying the mutexes and condition variables\n");
+        return 1;
+    }
 
-	  if(return_val2==1){
-		printf("There was an error with destroying the mutexes and condition variables\n");
-		return 1;
-	}
-	
+    // Final statistic output
+    printf("----------------------------------------------------------\n");
+    printf("Over the course of a %.0f second simulation:\n", getCurrentSimulationTime());
+    printf("----------------------------------------------------------\n");
+    printf("We served %d customers, of which %d were business and %d were economy!\n", business_num + economy_num, business_num, economy_num);
 
-	//Final statistic output
-	
-	printf("----------------------------------------------------------\n");
-	printf("Over the course of a %.0f second simulation:\n",getCurrentSimulationTime());
-	printf("----------------------------------------------------------\n");
-	printf("We served %d customers, of which %d were business and %d were economy!\n",business_num+economy_num,business_num,economy_num);
-	
-	printf("Customers spent a total of %.0f seconds waiting!\n",total_waiting);
-		
-	printf("The average waiting time for all customers is: %.2f seconds.\n\n",total_waiting/(business_num+economy_num));
+    printf("Customers spent a total of %.0f seconds waiting!\n", total_waiting);
 
-	printf("Business-class customers spent a total of %.0f seconds waiting!\n",total_business_waiting);
+    printf("The average waiting time for all customers is: %.2f seconds.\n\n", total_waiting / (business_num + economy_num));
 
-	//Condition to check whether there were any business customers throughout the entire session
-	if(business_num>0){
-	printf("The average waiting time for all business-class customers is: %.2f seconds.\n\n",total_business_waiting/business_num);
-	}
-	else{
-	printf("The average waiting time for all business-class customers is: 0.00 seconds.\n\n");
-	}
+    printf("Business-class customers spent a total of %.0f seconds waiting!\n", total_business_waiting);
 
+    // Condition to check whether there were any business customers throughout the entire session
+    if (business_num > 0) {
+        printf("The average waiting time for all business-class customers is: %.2f seconds.\n\n", total_business_waiting / business_num);
+    } else {
+        printf("The average waiting time for all business-class customers is: 0.00 seconds.\n\n");
+    }
 
-	
-	printf("Economy-class customers spent a total of %.0f seconds waiting!\n",total_economy_waiting);
-	
-	//Condition to check whether there were any economy customers throughout the entire session
-	if(economy_num>0){
-	printf("The average waiting time for all economy-class customers is: %.2f seconds.\n\n",total_economy_waiting/economy_num);
-	}
-	else{
-	printf("The average waiting time for all economy-class customers is: 0.00 seconds.\n\n");
-	}
-	
-		
-	return 0;
+    printf("Economy-class customers spent a total of %.0f seconds waiting!\n", total_economy_waiting);
+
+    // Condition to check whether there were any economy customers throughout the entire session
+    if (economy_num > 0) {
+        printf("The average waiting time for all economy-class customers is: %.2f seconds.\n\n", total_economy_waiting / economy_num);
+    } else {
+        printf("The average waiting time for all economy-class customers is: 0.00 seconds.\n\n");
+    }
+
+    return 0;
 }
 
 int Mutex_Convar_Creator(){
